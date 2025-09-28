@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catch the Object Game</title>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin:0;
+    padding:0;
+    background:#f0f8ff;
+  }
+  h1 {
+    font-size:2rem;
+    margin:20px 0;
+    color:#333;
+    text-align:center;
+  }
+  #game {
+    position:relative;
+    width:90vw;
+    max-width:400px;
+    aspect-ratio: 2/3;
+    border:3px solid #333;
+    border-radius:10px;
+    background: linear-gradient(to bottom, #a2d5f2, #f0f8ff);
+    overflow:hidden;
+    touch-action: none;
+  }
+  #player {
+    position:absolute;
+    bottom:0;
+    width:20%;
+    height:5%;
+    background:#ff6347;
+    border-radius:10px;
+  }
+  .item {
+    position:absolute;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:bold;
+    color:white;
+    text-shadow:0 0 2px black;
+  }
+  #info {
+    margin-top:15px;
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    font-size:1.1rem;
+  }
+  #score { color:#2e8b57; font-weight:bold; }
+  #lives { color:#ff4500; font-weight:bold; }
+  #level { color:#1e90ff; font-weight:bold; }
+  button {
+    margin-top:15px;
+    padding:10px 20px;
+    font-size:1rem;
+    cursor:pointer;
+    border:none;
+    border-radius:8px;
+    background:#4169e1;
+    color:white;
+  }
+  button:hover { background:#27408b; }
+  .particle {
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<h1>Catch the Object</h1>
+<div id="game">
+  <div id="player"></div>
+</div>
+<div id="info">
+  <div id="score">Score: 0</div>
+  <div id="lives">Lives: ❤️❤️❤️❤️❤️</div>
+  <div id="level">Level: 1</div>
+</div>
+<div>
+  <button id="controlBtn">Start Game</button>
+  <button onclick="restartGame()">Restart Game</button>
+</div>
+
+<audio id="catchSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<audio id="bonusSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+<audio id="malusSound" src="https://actions.google.com/sounds/v1/cartoon/boing.ogg"></audio>
+<audio id="lifeLostSound" src="https://actions.google.com/sounds/v1/cartoon/slide_whistle.ogg"></audio>
+
+<script>
+const game = document.getElementById('game');
+const player = document.getElementById('player');
+const scoreDisplay = document.getElementById('score');
+const livesDisplay = document.getElementById('lives');
+const levelDisplay = document.getElementById('level');
+const controlBtn = document.getElementById('controlBtn');
+
+const catchSound = document.getElementById('catchSound');
+const bonusSound = document.getElementById('bonusSound');
+const malusSound = document.getElementById('malusSound');
+const lifeLostSound = document.getElementById('lifeLostSound');
+
+let playerX = 0;
+let score = 0;
+let lives = 5;
+let level = 1;
+let gameOver = true;
+let paused = false;
+let itemInterval;
+
+const colors = ['#ff0000','#ff8c00','#32cd32','#1e90ff','#ff69b4'];
+const bonusColor = '#ffd700';
+const malusColor = '#000000';
+let baseSpeed = 0; // Will set dynamically on start
+
+function updateLivesDisplay() {
+  livesDisplay.textContent = 'Lives: ' + '❤️'.repeat(lives);
+}
+function updateLevel() {
+  levelDisplay.textContent = 'Level: ' + level;
+}
+
+function movePlayer(e){
+  if(gameOver || paused) return;
+  let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const rect = game.getBoundingClientRect();
+  playerX = clientX - rect.left - player.offsetWidth/2;
+  if(playerX<0) playerX=0;
+  if(playerX>game.offsetWidth - player.offsetWidth) playerX = game.offsetWidth - player.offsetWidth;
+  player.style.left = playerX+'px';
+}
+
+game.addEventListener('mousemove', movePlayer);
+game.addEventListener('touchmove', movePlayer);
+game.addEventListener('touchstart', movePlayer);
+
+function createParticle(x, y, color){
+  const particle = document.createElement('div');
+  particle.className = 'particle';
+  particle.style.left = x + 'px';
+  particle.style.top = y + 'px';
+  particle.style.width = particle.style.height = '5%';
+  particle.style.backgroundColor = color;
+  game.appendChild(particle);
+
+  let dx = (Math.random()-0.5)*4;
+  let dy = (Math.random()-0.5)*4;
+  let life = 20;
+  const partInterval = setInterval(()=>{
+    life--;
+    particle.style.left = parseFloat(particle.style.left) + dx + 'px';
+    particle.style.top = parseFloat(particle.style.top) + dy + 'px';
+    particle.style.opacity = life/20;
+    if(life<=0){
+      clearInterval(partInterval);
+      game.removeChild(particle);
+    }
+  }, 20);
+}
+
+function createItem(){
+  if(gameOver || paused) return;
+  const item = document.createElement('div');
+  item.className='item';
+  const size = Math.random() * game.offsetWidth*0.05 + game.offsetWidth*0.05;
+  item.style.width = item.style.height = size+'px';
+  item.style.left = Math.random()*(game.offsetWidth - size)+'px';
+  item.style.top = '0px';
+
+  const typeChance = Math.random();
+  let type = 'normal';
+  if(typeChance < 0.1) { type='malus'; item.style.background=malusColor; item.textContent='💀'; }
+  else if(typeChance < 0.2) { type='bonus'; item.style.background=bonusColor; item.textContent='💎'; }
+  else { type='normal'; item.style.background = colors[Math.floor(Math.random()*colors.length)]; }
+
+  game.appendChild(item);
+
+  let y=0;
+  let speed = baseSpeed + level*0.003*game.offsetHeight;
+
+  const fall = setInterval(()=>{
+    if(paused || gameOver) return;
+    y += speed;
+    item.style.top = y+'px';
+
+    const playerTop = game.offsetHeight - player.offsetHeight;
+    const playerLeft = playerX;
+    const playerRight = playerX + player.offsetWidth;
+    const itemLeft = parseFloat(item.style.left);
+    const itemRight = itemLeft + size;
+
+    if(y + size >= playerTop && y <= playerTop + player.offsetHeight &&
+       itemRight >= playerLeft && itemLeft <= playerRight){
+      if(type==='normal') { score += 10; catchSound.play(); createParticle(itemLeft, y, item.style.backgroundColor); }
+      if(type==='bonus') { score += 30; bonusSound.play(); createParticle(itemLeft, y, item.style.backgroundColor); }
+      if(type==='malus') { lives -=1; malusSound.play(); updateLivesDisplay(); createParticle(itemLeft, y, 'black'); }
+      scoreDisplay.textContent = 'Score: ' + score;
+      clearInterval(fall);
+      game.removeChild(item);
+      if(lives <=0) endGame();
+    } else if(y > game.offsetHeight){
+      if(type==='normal' || type==='bonus'){ lives -= 1; lifeLostSound.play(); updateLivesDisplay(); }
+      clearInterval(fall);
+      game.removeChild(item);
+      if(lives <=0) endGame();
+    }
+
+    if(score >= level*50){
+      level += 1;
+      updateLevel();
+      speed += 0.002*game.offsetHeight; // speed boost every level
+    }
+  }, 20);
+}
+
+function startGame(){
+  gameOver = false;
+  paused = false;
+  score = 0;
+  lives = 5;
+  level = 1;
+  scoreDisplay.textContent = 'Score: 0';
+  updateLivesDisplay();
+  updateLevel();
+  playerX = game.offsetWidth/2 - player.offsetWidth/2;
+  player.style.left = playerX+'px';
+  baseSpeed = game.offsetHeight * 0.005; // very slow starting speed
+  if(itemInterval) clearInterval(itemInterval);
+  itemInterval = setInterval(createItem, 1200); // start slower, can decrease interval as level increases
+}
+
+function restartGame(){
+  if(itemInterval) clearInterval(itemInterval);
+  game.innerHTML = '';
+  game.appendChild(player);
+  gameOver = true;
+  paused = false;
+  controlBtn.textContent = "Start Game";
+}
+
+function endGame(){
+  gameOver = true;
+  paused = false;
+  clearInterval(itemInterval);
+  controlBtn.textContent = "Start Game";
+  alert('Game Over! Your Score: ' + score);
+}
+
+controlBtn.addEventListener('click', () => {
+  if(gameOver){
+    startGame();
+    controlBtn.textContent = "Pause";
+  } else if(!paused){
+    paused = true;
+    controlBtn.textContent = "Resume";
+  } else {
+    paused = false;
+    controlBtn.textContent = "Pause";
+  }
+});
+</script>
+</body>
+</html>
