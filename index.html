@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  /* Background Particles */
+  body {
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    margin:0;
+    background: linear-gradient(135deg,#3b82f6,#9333ea);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+  }
+  canvas#bg-canvas {
+    position: absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    z-index:0;
+  }
+  /* Container */
+  .container {
+    position: relative;
+    z-index:1;
+    text-align: center;
+    color: white;
+  }
+  /* Fancy Title */
+  h1 {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: #fff;
+    text-shadow: 0 0 20px #ff0, 0 0 30px #f0f, 0 0 40px #0ff;
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+  /* Game Cards */
+  .games {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+  .game-card {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(15px);
+    border-radius: 1rem;
+    padding: 2rem;
+    width: 250px;
+    transition: transform 0.4s, box-shadow 0.4s;
+    cursor: pointer;
+    position: relative;
+    opacity:0;
+    transform: translateY(50px);
+    animation: fadeInUp 0.8s forwards;
+    box-shadow: 0 0 20px rgba(255,255,255,0.2);
+  }
+  .game-card:nth-child(1){ animation-delay: 0.2s; }
+  .game-card:nth-child(2){ animation-delay: 0.4s; }
+
+  @keyframes fadeInUp {
+    to { opacity:1; transform:translateY(0); }
+  }
+
+  .game-card:hover {
+    transform: translateY(-15px);
+    box-shadow: 0 0 40px rgba(255,255,255,0.5);
+  }
+  .game-card img {
+    width: 100%;
+    border-radius: 0.8rem;
+    margin-bottom: 1rem;
+    transition: transform 0.3s;
+  }
+  .game-card:hover img { transform: scale(1.05); }
+  .game-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .game-card p {
+    font-size: 1rem;
+    color: #e0e0e0;
+  }
+  .game-card::after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top:0;
+    left:0;
+    border-radius: 1rem;
+    background: linear-gradient(45deg, rgba(255,255,255,0.05), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .game-card:hover::after { opacity: 1; }
+  /* Confetti */
+  .confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    pointer-events: none;
+    opacity: 0.8;
+    z-index: 2;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="container">
+  <h1>🎮 Game Hub 🎮</h1>
+  <p class="text-lg">Choose a game to play and enjoy!</p>
+
+  <div class="games">
+    <div class="game-card" onclick="playConfetti(event); location.href='sudoku.html'">
+      <img src="sudoku.jpg" alt="Sudoku Game">
+      <h2>Sudoku</h2>
+      <p>Test your logic and complete the puzzle!</p>
+    </div>
+
+    <div class="game-card" onclick="playConfetti(event); location.href='bomber.html'">
+      <img src="bomber.png" alt="Bomber Game">
+      <h2>Bomber Game</h2>
+      <p>Explode obstacles and survive the chaos!</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Animated Particles Background */
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+let w = canvas.width = window.innerWidth;
+let h = canvas.height = window.innerHeight;
+const particles = [];
+
+window.addEventListener('resize', ()=>{
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+});
+
+class Particle {
+  constructor(){
+    this.x = Math.random()*w;
+    this.y = Math.random()*h;
+    this.size = Math.random()*3+1;
+    this.speedX = (Math.random()-0.5)*0.5;
+    this.speedY = (Math.random()-0.5)*0.5;
+  }
+  update(){
+    this.x += this.speedX;
+    this.y += this.speedY;
+    if(this.x <0) this.x = w;
+    if(this.x >w) this.x = 0;
+    if(this.y <0) this.y = h;
+    if(this.y >h) this.y = 0;
+  }
+  draw(){
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+for(let i=0;i<100;i++){
+  particles.push(new Particle());
+}
+
+function animate(){
+  ctx.clearRect(0,0,w,h);
+  particles.forEach(p=>{
+    p.update();
+    p.draw();
+  });
+  requestAnimationFrame(animate);
+}
+animate();
+
+/* Confetti Effect */
+function playConfetti(e){
+  const x = e.clientX;
+  const y = e.clientY;
+  for(let i=0;i<30;i++){
+    const confetti = document.createElement('div');
+    confetti.classList.add('confetti');
+    confetti.style.left = x + 'px';
+    confetti.style.top = y + 'px';
+    confetti.style.background = `hsl(${Math.random()*360}, 100%, 60%)`;
+    document.body.appendChild(confetti);
+    const dx = (Math.random()-0.5)*10;
+    const dy = (Math.random()-0.5)*10 - 5;
+    const rotate = Math.random()*360;
+    confetti.animate([
+      { transform: `translate(0,0) rotate(0deg)`, opacity:1 },
+      { transform: `translate(${dx*20}px, ${dy*20}px) rotate(${rotate}deg)`, opacity:0 }
+    ], {
+      duration: 1000 + Math.random()*500,
+      easing: 'ease-out',
+      iterations: 1,
+      fill: 'forwards'
+    });
+    setTimeout(()=>confetti.remove(), 1500);
+  }
+}
+</script>
+
+</body>
+</html>
