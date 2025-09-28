@@ -10,6 +10,8 @@
   body.dark { background: #1e293b; color: #f1f5f9; }
   h1 { color: #1e40af; transition: color 0.3s; }
   body.dark h1 { color: #38bdf8; }
+  
+  /* Game Container */
   #game-container { 
     margin: 2rem auto; 
     display: grid; 
@@ -23,6 +25,8 @@
     transition: background 0.3s;
   }
   body.dark #game-container { background: #0f172a; }
+
+  /* Sudoku Cells */
   .cell { 
     width: 60px; 
     height: 60px; 
@@ -42,7 +46,9 @@
   .cell.selected { outline:3px solid #2563eb; }
   .cell.correct { background:#34d399; color:white; transition:0.3s; }
   .cell.wrong { background:#f87171; color:white; transition:0.3s; }
-  .cell.highlight { background:#fde68a; } /* highlight row/column */
+  .cell.highlight { background:#fde68a; }
+
+  /* Controls */
   #controls { display:flex; justify-content:center; gap:1rem; margin-top:1rem; flex-wrap:wrap; }
   button { 
     padding: 1rem 1.5rem; 
@@ -54,21 +60,37 @@
     cursor:pointer; 
     transition:0.3s; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    font-size:2rem;
+    font-size:1.5rem;
   }
   button:hover { background:#2563eb; transform:scale(1.05); }
   body.dark button { background:#2563eb; }
   body.dark button:hover { background:#3b82f6; }
+
+  /* Info */
   #info { display:flex; justify-content:center; gap:2rem; margin-top:1rem; font-size:1.2rem; }
   #level-container { font-weight:bold; color:#1e3a8a; }
   body.dark #level-container { color:#38bdf8; }
+
+  /* Numeric Keypad */
+  #num-keypad { display:flex; flex-wrap:wrap; justify-content:center; gap:0.5rem; margin-top:1rem; }
+  #num-keypad button { width:60px; height:60px; font-size:1.5rem; padding:0; }
+  
+  /* Responsive */
+  @media(max-width:640px){
+    #game-container { 
+      grid-template-columns: repeat(9, 40px);
+      grid-template-rows: repeat(9, 40px);
+    }
+    .cell { width: 40px; height: 40px; line-height:40px; font-size:1.2rem; }
+    #num-keypad button { width:40px; height:40px; font-size:1.2rem; }
+  }
 </style>
 </head>
-<body class="flex flex-col items-center min-h-screen p-6">
+<body class="flex flex-col items-center min-h-screen p-4">
 
 <header class="text-center mb-6">
   <h1 class="text-5xl font-bold mb-2">Sudoku Game</h1>
-  <p class="text-black-700 dark:text-black-300 text-lg">Click a cell and type 1-9. Use hints wisely!</p>
+  <p class="text-black-700 dark:text-black-300 text-lg">Click a cell and use the keypad to enter 1-9. Use hints wisely!</p>
 </header>
 
 <div id="controls">
@@ -88,6 +110,19 @@
 
 <div id="game-container"></div>
 
+<!-- Numeric Keypad for Mobile/Desktop -->
+<div id="num-keypad">
+  <button onclick="pressNumber(1)">1</button>
+  <button onclick="pressNumber(2)">2</button>
+  <button onclick="pressNumber(3)">3</button>
+  <button onclick="pressNumber(4)">4</button>
+  <button onclick="pressNumber(5)">5</button>
+  <button onclick="pressNumber(6)">6</button>
+  <button onclick="pressNumber(7)">7</button>
+  <button onclick="pressNumber(8)">8</button>
+  <button onclick="pressNumber(9)">9</button>
+</div>
+
 <script>
 const gameContainer = document.getElementById('game-container');
 const scoreDisplay = document.getElementById('score');
@@ -105,9 +140,7 @@ let timerInterval;
 let selectedCell = null;
 
 // Dark Mode Toggle
-function toggleDarkMode(){
-  document.body.classList.toggle('dark');
-}
+function toggleDarkMode(){ document.body.classList.toggle('dark'); }
 
 // Solved board template
 function solvedBoard() {
@@ -187,29 +220,46 @@ function selectCell(cell){
   highlightRowCol(cell);
 }
 
-// Handle input
+// Handle keyboard input
 document.addEventListener('keydown', e=>{
   if(!selectedCell || selectedCell.classList.contains('prefilled')) return;
   const x=parseInt(selectedCell.dataset.x);
   const y=parseInt(selectedCell.dataset.y);
   if('123456789'.includes(e.key)){
-    const value=parseInt(e.key);
-    selectedCell.textContent=value;
-    if(solution[y][x]===value){
-      selectedCell.classList.remove('wrong');
-      selectedCell.classList.add('correct');
-      board[y][x]=value;
-      score+=10;
-      scoreDisplay.textContent=score;
-      checkCompletion();
-    } else {
-      selectedCell.classList.add('wrong');
-      setTimeout(()=>selectedCell.classList.remove('wrong'),500);
-      score=Math.max(score-5,0);
-      scoreDisplay.textContent=score;
-    }
+    fillCell(selectedCell, parseInt(e.key));
   }
 });
+
+// Fill cell (keyboard or keypad)
+function fillCell(cell, value){
+  const x = parseInt(cell.dataset.x);
+  const y = parseInt(cell.dataset.y);
+  cell.textContent = value;
+  if(solution[y][x]===value){
+    cell.classList.remove('wrong');
+    cell.classList.add('correct');
+    board[y][x]=value;
+  } else {
+    cell.classList.add('wrong');
+    setTimeout(()=>cell.classList.remove('wrong'),500);
+    board[y][x]=value;
+  }
+  // Update score
+  score = 0;
+  for(let yy=0; yy<9; yy++){
+    for(let xx=0; xx<9; xx++){
+      if(board[yy][xx] === solution[yy][xx]) score += 10;
+    }
+  }
+  scoreDisplay.textContent = score;
+  checkCompletion();
+}
+
+// Mobile-friendly keypad function
+function pressNumber(num){
+  if(!selectedCell || selectedCell.classList.contains('prefilled')) return;
+  fillCell(selectedCell, num);
+}
 
 // Check completion
 function checkCompletion(){
@@ -265,12 +315,7 @@ function useHint(){
   const y=parseInt(selectedCell.dataset.y);
   if(board[y][x]===0 || board[y][x]!==solution[y][x]){
     const value=solution[y][x];
-    selectedCell.textContent=value;
-    selectedCell.classList.add('correct');
-    board[y][x]=value;
-    score=Math.max(score-5,0);
-    scoreDisplay.textContent=score;
-    checkCompletion();
+    fillCell(selectedCell, value);
   }
 }
 
