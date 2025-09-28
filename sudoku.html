@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudoku Game - Dark Mode</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #eef2ff; font-family: 'Inter', sans-serif; transition: background 0.3s, color 0.3s; }
+  body.dark { background: #1e293b; color: #f1f5f9; }
+  h1 { color: #1e40af; transition: color 0.3s; }
+  body.dark h1 { color: #38bdf8; }
+  #game-container { 
+    margin: 2rem auto; 
+    display: grid; 
+    grid-template-columns: repeat(9, 60px); 
+    grid-template-rows: repeat(9, 60px); 
+    gap: 2px; 
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
+    border-radius: 10px; 
+    background: #3b82f6;
+    padding: 2px;
+    transition: background 0.3s;
+  }
+  body.dark #game-container { background: #0f172a; }
+  .cell { 
+    width: 60px; 
+    height: 60px; 
+    text-align:center; 
+    font-size:1.5rem; 
+    line-height:60px; 
+    cursor:pointer; 
+    border:1px solid #93c5fd; 
+    background: #fff;
+    border-radius: 6px;
+    transition: 0.2s, background 0.3s, color 0.3s;
+    user-select: none;
+  }
+  body.dark .cell { background: #334155; border-color: #2563eb; color: #f1f5f9; }
+  .cell.prefilled { background:#bfdbfe; font-weight:bold; cursor:default; color:#1e3a8a; }
+  body.dark .cell.prefilled { background:#3b82f6; color:#e0f2fe; }
+  .cell.selected { outline:3px solid #2563eb; }
+  .cell.correct { background:#34d399; color:white; transition:0.3s; }
+  .cell.wrong { background:#f87171; color:white; transition:0.3s; }
+  .cell.highlight { background:#fde68a; } /* highlight row/column */
+  #controls { display:flex; justify-content:center; gap:1rem; margin-top:1rem; flex-wrap:wrap; }
+  button { 
+    padding: 1rem 1.5rem; 
+    background:#3b82f6; 
+    color:white; 
+    font-weight:bold; 
+    border:2px solid black; 
+    border-radius:0.5rem; 
+    cursor:pointer; 
+    transition:0.3s; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    font-size:2rem;
+  }
+  button:hover { background:#2563eb; transform:scale(1.05); }
+  body.dark button { background:#2563eb; }
+  body.dark button:hover { background:#3b82f6; }
+  #info { display:flex; justify-content:center; gap:2rem; margin-top:1rem; font-size:1.2rem; }
+  #level-container { font-weight:bold; color:#1e3a8a; }
+  body.dark #level-container { color:#38bdf8; }
+</style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-6">
+
+<header class="text-center mb-6">
+  <h1 class="text-5xl font-bold mb-2">Sudoku Game</h1>
+  <p class="text-black-700 dark:text-black-300 text-lg">Click a cell and type 1-9. Use hints wisely!</p>
+</header>
+
+<div id="controls">
+  <button onclick="startGame('easy')">Easy</button>
+  <button onclick="startGame('difficult')">Difficult</button>
+  <button onclick="startGame('endless')">Endless</button>
+  <button onclick="useHint()">Hint</button>
+  <button onclick="restartGame()">Restart</button>
+  <button onclick="toggleDarkMode()">Dark Mode</button>
+</div>
+
+<div id="info">
+  <div>Score: <span id="score">0</span></div>
+  <div>Time: <span id="timer">0:00</span></div>
+  <div id="level-container" style="display:none;">Level: <span id="level">1</span></div>
+</div>
+
+<div id="game-container"></div>
+
+<script>
+const gameContainer = document.getElementById('game-container');
+const scoreDisplay = document.getElementById('score');
+const timerDisplay = document.getElementById('timer');
+const levelContainer = document.getElementById('level-container');
+const levelDisplay = document.getElementById('level');
+
+let solution = [];
+let board = [];
+let score = 0;
+let currentMode = 'easy';
+let endlessLevel = 1;
+let timer = 0;
+let timerInterval;
+let selectedCell = null;
+
+// Dark Mode Toggle
+function toggleDarkMode(){
+  document.body.classList.toggle('dark');
+}
+
+// Solved board template
+function solvedBoard() {
+  const base = [
+    [1,2,3,4,5,6,7,8,9],
+    [4,5,6,7,8,9,1,2,3],
+    [7,8,9,1,2,3,4,5,6],
+    [2,3,4,5,6,7,8,9,1],
+    [5,6,7,8,9,1,2,3,4],
+    [8,9,1,2,3,4,5,6,7],
+    [3,4,5,6,7,8,9,1,2],
+    [6,7,8,9,1,2,3,4,5],
+    [9,1,2,3,4,5,6,7,8]
+  ];
+  return base;
+}
+
+// Generate board
+function generateBoard(difficulty){
+  let solved = solvedBoard();
+  let newBoard = JSON.parse(JSON.stringify(solved));
+  let removeCount = difficulty==='easy'?30:difficulty==='difficult'?50:40+endlessLevel*5;
+  while(removeCount>0){
+    let x=Math.floor(Math.random()*9);
+    let y=Math.floor(Math.random()*9);
+    if(newBoard[y][x]!==0){
+      newBoard[y][x]=0;
+      removeCount--;
+    }
+  }
+  solution = solved;
+  return newBoard;
+}
+
+// Render board
+function renderBoard(){
+  gameContainer.innerHTML='';
+  for(let y=0;y<9;y++){
+    for(let x=0;x<9;x++){
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      if(x===2||x===5) cell.style.borderRight="3px solid #1e40af";
+      if(y===2||y===5) cell.style.borderBottom="3px solid #1e40af";
+      if(board[y][x]!==0){
+        cell.textContent = board[y][x];
+        cell.classList.add('prefilled');
+      } else {
+        cell.addEventListener('click',()=>selectCell(cell));
+      }
+      gameContainer.appendChild(cell);
+    }
+  }
+}
+
+// Highlight row and column
+function highlightRowCol(cell){
+  const x = parseInt(cell.dataset.x);
+  const y = parseInt(cell.dataset.y);
+  document.querySelectorAll('.cell').forEach(c=>{
+    c.classList.remove('highlight');
+    if(parseInt(c.dataset.x)===x || parseInt(c.dataset.y)===y){
+      if(!c.classList.contains('selected') && !c.classList.contains('prefilled')){
+        c.classList.add('highlight');
+      }
+    }
+  });
+}
+
+// Select cell
+function selectCell(cell){
+  if(cell.classList.contains('prefilled')) return;
+  if(selectedCell) selectedCell.classList.remove('selected');
+  selectedCell = cell;
+  cell.classList.add('selected');
+  highlightRowCol(cell);
+}
+
+// Handle input
+document.addEventListener('keydown', e=>{
+  if(!selectedCell || selectedCell.classList.contains('prefilled')) return;
+  const x=parseInt(selectedCell.dataset.x);
+  const y=parseInt(selectedCell.dataset.y);
+  if('123456789'.includes(e.key)){
+    const value=parseInt(e.key);
+    selectedCell.textContent=value;
+    if(solution[y][x]===value){
+      selectedCell.classList.remove('wrong');
+      selectedCell.classList.add('correct');
+      board[y][x]=value;
+      score+=10;
+      scoreDisplay.textContent=score;
+      checkCompletion();
+    } else {
+      selectedCell.classList.add('wrong');
+      setTimeout(()=>selectedCell.classList.remove('wrong'),500);
+      score=Math.max(score-5,0);
+      scoreDisplay.textContent=score;
+    }
+  }
+});
+
+// Check completion
+function checkCompletion(){
+  for(let y=0;y<9;y++){
+    for(let x=0;x<9;x++){
+      if(board[y][x]!==solution[y][x]) return;
+    }
+  }
+  clearInterval(timerInterval);
+  alert(`Puzzle Completed! Score: ${score} Time: ${formatTime(timer)}`);
+  if(currentMode==='endless'){
+    endlessLevel++;
+    startGame('endless');
+  }
+}
+
+// Start game
+function startGame(mode){
+  currentMode=mode;
+  if(mode==='endless'){
+    levelContainer.style.display='block';
+    levelDisplay.textContent=endlessLevel;
+  } else{
+    endlessLevel=1;
+    levelContainer.style.display='none';
+  }
+  board=generateBoard(mode);
+  score=0; scoreDisplay.textContent=score;
+  timer=0; timerDisplay.textContent='0:00';
+  if(timerInterval) clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{timer++; timerDisplay.textContent=formatTime(timer);},1000);
+  renderBoard();
+  selectedCell=null;
+}
+
+// Restart game
+function restartGame(){
+  endlessLevel=1;
+  startGame(currentMode);
+}
+
+// Format time
+function formatTime(seconds){
+  const mins=Math.floor(seconds/60);
+  const secs=seconds%60;
+  return `${mins}:${secs.toString().padStart(2,'0')}`;
+}
+
+// Hint
+function useHint(){
+  if(!selectedCell || selectedCell.classList.contains('prefilled')) return;
+  const x=parseInt(selectedCell.dataset.x);
+  const y=parseInt(selectedCell.dataset.y);
+  if(board[y][x]===0 || board[y][x]!==solution[y][x]){
+    const value=solution[y][x];
+    selectedCell.textContent=value;
+    selectedCell.classList.add('correct');
+    board[y][x]=value;
+    score=Math.max(score-5,0);
+    scoreDisplay.textContent=score;
+    checkCompletion();
+  }
+}
+
+startGame('easy');
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bomber Game Upgraded</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #f0f4f8; }
+  #game-container {
+    width: 400px; height: 400px;
+    margin: 2rem auto; border: 4px solid #1e40af;
+    display: grid; grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr); gap: 2px;
+    background-color: #93c5fd;
+  }
+  .cell { position: relative; border-radius: 4px; background-color: #bfdbfe; }
+  .player { background-color: #f87171; width: 100%; height: 100%; border-radius: 4px; z-index:2; }
+  .block { background-color: #facc15; width: 100%; height: 100%; border-radius: 4px; z-index:1; }
+  .bomb { background-color: #374151; width: 100%; height: 100%; border-radius: 50%; animation: pulse 0.5s infinite alternate; z-index:2; }
+  @keyframes pulse { from{transform:scale(0.8);} to{transform:scale(1.2);} }
+  .explosion { background-color: #fbbf24; width: 100%; height: 100%; border-radius: 50%; animation: explode 0.3s forwards; z-index:3; }
+  @keyframes explode { 0%{transform:scale(0.5);opacity:1;} 100%{transform:scale(2);opacity:0;} }
+  .enemy { background-color: #10b981; width: 100%; height: 100%; border-radius: 4px; z-index:2; }
+  .powerup { background-color: #8b5cf6; width: 100%; height: 100%; border-radius: 50%; z-index:2; }
+</style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+<header class="text-center mb-4">
+  <h1 class="text-4xl font-bold text-blue-600 mb-2">Bomber Game Upgraded</h1>
+  <p class="text-gray-700">Arrow keys to move, SPACE to drop bombs. Avoid enemies & collect power-ups!</p>
+</header>
+
+<div id="scoreboard" class="mb-4 text-xl font-semibold">Score: <span id="score">0</span></div>
+<div id="game-container"></div>
+<button id="restart-btn" class="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">Restart Game</button>
+
+<script>
+const gridSize = 10;
+const gameContainer = document.getElementById('game-container');
+const scoreDisplay = document.getElementById('score');
+const restartBtn = document.getElementById('restart-btn');
+
+let playerPos = {x:0, y:0};
+let score = 0;
+let blocks = [];
+let bombs = [];
+let enemies = [];
+let powerups = [];
+
+// Create grid
+function createGrid(){
+  gameContainer.innerHTML='';
+  blocks=[]; bombs=[]; enemies=[]; powerups=[];
+  for(let y=0;y<gridSize;y++){
+    for(let x=0;x<gridSize;x++){
+      const cell=document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.x=x;
+      cell.dataset.y=y;
+      gameContainer.appendChild(cell);
+      if(Math.random()<0.15 && !(x===0 && y===0)){
+        const block=document.createElement('div');
+        block.classList.add('block');
+        cell.appendChild(block);
+        blocks.push({x,y,element:block});
+      }
+    }
+  }
+  spawnEnemies(3);
+  spawnPowerups(2);
+  drawPlayer();
+}
+
+// Draw player
+function drawPlayer(){
+  document.querySelectorAll('.player').forEach(p=>p.remove());
+  const cell = getCell(playerPos.x, playerPos.y);
+  const player = document.createElement('div');
+  player.classList.add('player');
+  cell.appendChild(player);
+}
+
+// Get cell by coordinates
+function getCell(x,y){return gameContainer.querySelector(`.cell[data-x='${x}'][data-y='${y}']`);}
+
+// Move player with block collision
+function movePlayer(dx,dy){
+  const newX=playerPos.x+dx;
+  const newY=playerPos.y+dy;
+  if(newX>=0 && newX<gridSize && newY>=0 && newY<gridSize){
+    const targetCell=getCell(newX,newY);
+    if(!targetCell.querySelector('.block') && !targetCell.querySelector('.enemy')){
+      playerPos.x=newX;
+      playerPos.y=newY;
+      // Collect powerup
+      const pu=targetCell.querySelector('.powerup');
+      if(pu){
+        pu.remove(); score+=20; scoreDisplay.textContent=score;
+      }
+      drawPlayer();
+    }
+  }
+}
+
+// Drop bomb
+function dropBomb(){
+  const cell=getCell(playerPos.x,playerPos.y);
+  if(cell.querySelector('.bomb')) return; // prevent multiple bombs
+  const bomb=document.createElement('div');
+  bomb.classList.add('bomb');
+  cell.appendChild(bomb);
+  bombs.push({x:playerPos.x, y:playerPos.y, element:bomb});
+  setTimeout(()=>explodeBomb(bomb,playerPos.x,playerPos.y),1500);
+}
+
+// Explode bomb with chain reaction
+function explodeBomb(bomb,x,y){
+  bomb.remove();
+  bombs=bombs.filter(b=>!(b.x===x && b.y===y));
+  const explosionCells=[
+    getCell(x,y),
+    getCell(x+1,y),
+    getCell(x-1,y),
+    getCell(x,y+1),
+    getCell(x,y-1)
+  ];
+  explosionCells.forEach(cell=>{
+    if(cell){
+      // Chain reaction
+      const nearbyBomb = cell.querySelector('.bomb');
+      if(nearbyBomb) explodeBomb(nearbyBomb, parseInt(cell.dataset.x), parseInt(cell.dataset.y));
+      // Explosion effect
+      const explosion=document.createElement('div');
+      explosion.classList.add('explosion');
+      cell.appendChild(explosion);
+      setTimeout(()=>explosion.remove(),300);
+      // Destroy block
+      const block=cell.querySelector('.block');
+      if(block){ block.remove(); score+=10; scoreDisplay.textContent=score; }
+      // Kill enemy
+      const enemy=cell.querySelector('.enemy');
+      if(enemy){ enemy.remove(); score+=15; scoreDisplay.textContent=score; }
+    }
+  });
+}
+
+// Enemies
+function spawnEnemies(count){
+  for(let i=0;i<count;i++){
+    let x,y,cell;
+    do{
+      x=Math.floor(Math.random()*gridSize);
+      y=Math.floor(Math.random()*gridSize);
+      cell=getCell(x,y);
+    }while(cell.querySelector('.block') || cell.querySelector('.enemy') || (x===0 && y===0));
+    const enemy=document.createElement('div');
+    enemy.classList.add('enemy');
+    cell.appendChild(enemy);
+    enemies.push({x,y,element:enemy});
+  }
+}
+function moveEnemies(){
+  enemies.forEach(enemy=>{
+    const dx=[-1,0,1][Math.floor(Math.random()*3)];
+    const dy=[-1,0,1][Math.floor(Math.random()*3)];
+    const newX=enemy.x+dx; const newY=enemy.y+dy;
+    if(newX>=0 && newX<gridSize && newY>=0 && newY<gridSize){
+      const cell=getCell(newX,newY);
+      if(!cell.querySelector('.block') && !cell.querySelector('.enemy')){
+        enemy.element.remove();
+        enemy.x=newX; enemy.y=newY;
+        cell.appendChild(enemy.element);
+        // Touch player = penalty
+        if(playerPos.x===newX && playerPos.y===newY){ score=Math.max(score-10,0); scoreDisplay.textContent=score; }
+      }
+    }
+  });
+}
+
+// Power-ups
+function spawnPowerups(count){
+  for(let i=0;i<count;i++){
+    let x,y,cell;
+    do{
+      x=Math.floor(Math.random()*gridSize);
+      y=Math.floor(Math.random()*gridSize);
+      cell=getCell(x,y);
+    }while(cell.querySelector('.block') || cell.querySelector('.powerup') || (x===0 && y===0));
+    const pu=document.createElement('div');
+    pu.classList.add('powerup');
+    cell.appendChild(pu);
+    powerups.push({x,y,element:pu});
+  }
+}
+
+// Controls
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp') movePlayer(0,-1);
+  if(e.key==='ArrowDown') movePlayer(0,1);
+  if(e.key==='ArrowLeft') movePlayer(-1,0);
+  if(e.key==='ArrowRight') movePlayer(1,0);
+  if(e.code==='Space') dropBomb();
+});
+
+// Enemy movement loop
+setInterval(moveEnemies,800);
+
+// Restart
+restartBtn.addEventListener('click',()=>{ score=0; scoreDisplay.textContent=score; playerPos={x:0,y:0}; createGrid(); });
+
+createGrid();
+</script>
+</body>
+</html>
